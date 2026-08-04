@@ -28,6 +28,24 @@ type Product = {
   }>
 }
 
+type OrderStatus = 'PENDING' | 'PAID' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED'
+
+type Order = {
+  id: string
+  guestEmail: string | null
+  guestName: string | null
+  status: OrderStatus
+  totalCents: number
+  createdAt: string
+  items: Array<{
+    id: string
+    productNameSnapshot: string
+    variantLabelSnapshot: string
+    unitPriceCents: number
+    quantity: number
+  }>
+}
+
 type ProductForm = {
   name: string
   description: string
@@ -35,6 +53,10 @@ type ProductForm = {
   stock: string
   status: 'DRAFT' | 'ACTIVE'
 }
+
+type AdminTab = 'products' | 'orders' | 'settings'
+
+type ProductStatusFilter = 'ALL' | 'ACTIVE' | 'DRAFT'
 
 const emptyProductForm: ProductForm = {
   name: '',
@@ -54,12 +76,22 @@ function App() {
   const [storeSlug, setStoreSlug] = useState(store?.slug ?? '')
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<AdminTab>('products')
+  const [productSearch, setProductSearch] = useState('')
+  const [productStatusFilter, setProductStatusFilter] =
+    useState<ProductStatusFilter>('ALL')
   const [message, setMessage] = useState('')
 
   const productsQuery = useQuery<Product[]>(
     ['products', store?.slug],
     () => apiRequest<Product[]>(`/stores/${store?.slug}/products`, { token }),
     { enabled: Boolean(store), initialData: [] },
+  )
+
+  const ordersQuery = useQuery<Order[]>(
+    ['orders', store?.slug],
+    () => apiRequest<Order[]>(`/stores/${store?.slug}/orders`, { token }),
+    { enabled: Boolean(store && token), initialData: [] },
   )
 
   const authMutation = useMutation<
@@ -163,12 +195,45 @@ function App() {
     },
   )
 
+  const updateOrderStatusMutation = useMutation<
+    { orderId: string; status: OrderStatus },
+    Order
+  >(
+    (input) => {
+      if (!store) {
+        throw new Error('Select a store first')
+      }
+      return apiRequest(`/stores/${store.slug}/orders/${input.orderId}/status`, {
+        method: 'PATCH',
+        token,
+        body: JSON.stringify({ status: input.status }),
+      })
+    },
+    {
+      onSuccess: async () => {
+        setMessage('Order status updated')
+        await ordersQuery.refetch()
+      },
+      onError: setMessage,
+    },
+  )
+
   const busy =
     authMutation.isPending ||
     createStoreMutation.isPending ||
     openStoreMutation.isPending ||
     saveProductMutation.isPending ||
-    deleteProductMutation.isPending
+    deleteProductMutation.isPending ||
+    updateOrderStatusMutation.isPending
+
+  const filteredProducts = productsQuery.data.filter((product) => {
+    const matchesSearch = product.name
+      .toLowerCase()
+      .includes(productSearch.trim().toLowerCase())
+    const matchesStatus =
+      productStatusFilter === 'ALL' || product.status === productStatusFilter
+    return matchesSearch && matchesStatus
+  })
 
   function submitAuth(event: FormEvent) {
     event.preventDefault()
@@ -202,6 +267,11 @@ function App() {
     deleteProductMutation.mutate(productId).catch(() => undefined)
   }
 
+  function updateOrderStatus(orderId: string, status: OrderStatus) {
+    setMessage('')
+    updateOrderStatusMutation.mutate({ orderId, status }).catch(() => undefined)
+  }
+
   function editProduct(product: Product) {
     const variant = product.variants[0]
     setEditingId(product.id)
@@ -230,6 +300,9 @@ function App() {
     setStoreSlug('')
     setProductForm(emptyProductForm)
     setEditingId(null)
+    setActiveTab('products')
+    setProductSearch('')
+    setProductStatusFilter('ALL')
     setMessage('')
     productsQuery.setData([])
     localStorage.removeItem('hula.token')
@@ -246,9 +319,27 @@ function App() {
         </div>
         {user ? (
           <nav>
-            <span className="nav-item active">Products</span>
-            <span className="nav-item">Orders</span>
-            <span className="nav-item">Store settings</span>
+            <button
+              type="button"
+              className={activeTab === 'products' ? 'nav-item active' : 'nav-item'}
+              onClick={() => setActiveTab('products')}
+            >
+              Products
+            </button>
+            <button
+              type="button"
+              className={activeTab === 'orders' ? 'nav-item active' : 'nav-item'}
+              onClick={() => setActiveTab('orders')}
+            >
+              Orders
+            </button>
+            <button
+              type="button"
+              className={activeTab === 'settings' ? 'nav-item active' : 'nav-item'}
+              onClick={() => setActiveTab('settings')}
+            >
+              Store settings
+            </button>
           </nav>
         ) : (
           <div className="intro">
@@ -415,7 +506,7 @@ function App() {
               </form>
             </section>
 
-            {store ? (
+            {store && activeTab === 'products' ? (
               <section className="content-grid">
                 <form onSubmit={saveProduct} className="panel product-form">
                   <div>
@@ -509,7 +600,7 @@ function App() {
                   <div className="section-heading">
                     <div>
                       <p className="eyebrow">Products</p>
-                      <h2>{productsQuery.data.length} items</h2>
+                      <h2>{filteredProducts.length} items</h2>
                     </div>
                     <button
                       type="button"
@@ -519,8 +610,33 @@ function App() {
                       {productsQuery.isLoading ? 'Loading...' : 'Refresh'}
                     </button>
                   </div>
+                  <div className="filterbar">
+                    <label>
+                      Search
+                      <input
+                        value={productSearch}
+                        onChange={(event) => setProductSearch(event.target.value)}
+                        placeholder="Search product name"
+                      />
+                    </label>
+                    <label>
+                      Status
+                      <select
+                        value={productStatusFilter}
+                        onChange={(event) =>
+                          setProductStatusFilter(
+                            event.target.value as ProductStatusFilter,
+                          )
+                        }
+                      >
+                        <option value="ALL">All</option>
+                        <option value="ACTIVE">Active</option>
+                        <option value="DRAFT">Draft</option>
+                      </select>
+                    </label>
+                  </div>
                   <div className="table">
-                    {productsQuery.data.map((product) => {
+                    {filteredProducts.map((product) => {
                       const variant = product.variants[0]
                       return (
                         <article className="product-row" key={product.id}>
@@ -548,11 +664,92 @@ function App() {
                         </article>
                       )
                     })}
-                    {productsQuery.data.length === 0 ? (
-                      <div className="empty">No products yet.</div>
+                    {filteredProducts.length === 0 ? (
+                      <div className="empty">
+                        {productsQuery.data.length === 0
+                          ? 'No products yet.'
+                          : 'No products match your filters.'}
+                      </div>
                     ) : null}
                   </div>
                 </section>
+              </section>
+            ) : null}
+
+            {store && activeTab === 'orders' ? (
+              <section className="panel order-list">
+                <div className="section-heading">
+                  <div>
+                    <p className="eyebrow">Orders</p>
+                    <h2>{ordersQuery.data.length} orders</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => ordersQuery.refetch()}
+                  >
+                    {ordersQuery.isLoading ? 'Loading...' : 'Refresh'}
+                  </button>
+                </div>
+                <div className="table">
+                  {ordersQuery.data.map((order) => (
+                    <article className="order-row" key={order.id}>
+                      <div>
+                        <strong>{order.guestName ?? 'Guest customer'}</strong>
+                        <span>{order.guestEmail ?? 'No email'}</span>
+                        <span>{order.items.length} item lines</span>
+                      </div>
+                      <span>{formatMoney(order.totalCents)}</span>
+                      <span>{new Date(order.createdAt).toLocaleDateString()}</span>
+                      <select
+                        value={order.status}
+                        onChange={(event) =>
+                          updateOrderStatus(order.id, event.target.value as OrderStatus)
+                        }
+                      >
+                        <option value="PENDING">Pending</option>
+                        <option value="PAID">Paid</option>
+                        <option value="SHIPPED">Shipped</option>
+                        <option value="DELIVERED">Delivered</option>
+                        <option value="CANCELLED">Cancelled</option>
+                      </select>
+                    </article>
+                  ))}
+                  {ordersQuery.data.length === 0 ? (
+                    <div className="empty">
+                      No orders yet. Storefront checkout will create them here.
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
+
+            {store && activeTab === 'settings' ? (
+              <section className="settings-grid">
+                <div className="panel settings-panel">
+                  <p className="eyebrow">Store settings</p>
+                  <h2>{store.name}</h2>
+                  <div className="settings-list">
+                    <div>
+                      <span>Store slug</span>
+                      <strong>/{store.slug}</strong>
+                    </div>
+                    <div>
+                      <span>Mosaic visibility</span>
+                      <strong>
+                        {store.isListedOnMarketplace ? 'Listed' : 'Not listed'}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+                <div className="panel empty-state">
+                  <p className="eyebrow">Coming next</p>
+                  <h2>Edit settings</h2>
+                  <p>
+                    The next backend step will add saving for store name, Mosaic
+                    visibility, and theme basics.
+                  </p>
+                </div>
               </section>
             ) : null}
           </>
