@@ -35,21 +35,32 @@ export type Collection = {
 
 export type ProductStatus = 'DRAFT' | 'ACTIVE'
 
+export type Variant = {
+  id: string
+  sku: string | null
+  price: string
+  compareAtPrice: string | null
+  stock: number
+  optionValues: Record<string, string>
+}
+
 export type Product = {
   id: string
   name: string
   description: string | null
+  vendor: string | null
+  tags: string[]
+  seoTitle: string | null
+  seoDescription: string | null
   status: ProductStatus
   category: ProductCategory | null
   collections: Array<{ collection: Collection }>
-  variants: Array<{
-    id: string
-    price: string
-    stock: number
-  }>
+  images: Array<{ id: string; url: string; alt: string | null; position: number }>
+  options: Array<{ id: string; name: string; values: Array<{ id: string; value: string }> }>
+  variants: Variant[]
 }
 
-export type OrderStatus = 'PENDING' | 'PAID' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED'
+export type OrderStatus = 'DRAFT' | 'PENDING' | 'PAID' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED'
 
 export type Payment = {
   method: 'COD' | 'VNPAY'
@@ -61,10 +72,15 @@ export type Order = {
   guestEmail: string | null
   guestName: string | null
   status: OrderStatus
+  subtotal: string
+  discountCode: string | null
+  discountAmount: string
+  note: string | null
   total: string
   createdAt: string
   items: Array<{
     id: string
+    variantId: string | null
     productNameSnapshot: string
     variantLabelSnapshot: string
     unitPrice: string
@@ -96,4 +112,19 @@ export type PageProps = {
   store: Store
   token: string
   notify: (message: string) => void
+  // second hash segment, e.g. the product id in #/products/:id
+  param?: string
+}
+
+export type Discount = {
+  id: string
+  code: string
+  type: 'PERCENTAGE' | 'FIXED'
+  value: string
+  minSubtotal: string | null
+  usageLimit: number | null
+  usedCount: number
+  startsAt: string | null
+  endsAt: string | null
+  active: boolean
 }

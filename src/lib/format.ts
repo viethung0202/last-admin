@@ -22,4 +22,5 @@ export function readStorage<T>(key: string): T | null {
   }
 }
 
+// DRAFT is not here: drafts live on their own page and are completed, not set by status
 export const ORDER_STATUSES = ['PENDING', 'PAID', 'SHIPPED', 'DELIVERED', 'CANCELLED'] as const

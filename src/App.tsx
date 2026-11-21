@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { FileEdit, Home, Layers, Percent, Settings, ShoppingCart, Tag, Users } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { apiRequest, useMutation, useQuery } from './lib/api'
 import { readStorage } from './lib/format'
@@ -6,38 +7,45 @@ import type { PageProps, Store, User } from './lib/types'
 import { CollectionsPage } from './pages/CollectionsPage'
 import { CustomersPage } from './pages/CustomersPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { DiscountsPage } from './pages/DiscountsPage'
+import { DraftOrdersPage } from './pages/DraftOrdersPage'
 import { OrdersPage } from './pages/OrdersPage'
+import { ProductEditorPage } from './pages/ProductEditorPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { StorePicker } from './pages/StorePicker'
 import './App.css'
 
-const TABS = [
-  ['dashboard', 'Dashboard'],
-  ['products', 'Products'],
-  ['collections', 'Collections'],
-  ['orders', 'Orders'],
-  ['customers', 'Customers'],
-  ['settings', 'Settings'],
+const NAV = [
+  ['dashboard', 'Home', Home, false],
+  ['orders', 'Orders', ShoppingCart, false],
+  ['drafts', 'Drafts', FileEdit, true],
+  ['products', 'Products', Tag, false],
+  ['collections', 'Collections', Layers, true],
+  ['customers', 'Customers', Users, false],
+  ['discounts', 'Discounts', Percent, false],
+  ['settings', 'Settings', Settings, false],
 ] as const
 
-type Tab = (typeof TABS)[number][0]
+type Tab = (typeof NAV)[number][0]
 
-// #/orders -> 'orders'; keeps the tab on refresh and makes links like href="#/orders" work
-function tabFromHash(): Tab {
-  const tab = location.hash.replace(/^#\/?/, '')
-  return TABS.some(([key]) => key === tab) ? (tab as Tab) : 'dashboard'
+// #/orders -> {tab:'orders'}, #/products/abc -> {tab:'products', param:'abc'}
+// keeps the page on refresh and makes links like href="#/orders" work
+function routeFromHash(): { tab: Tab; param?: string } {
+  const [tab, param] = location.hash.replace(/^#\/?/, '').split('/')
+  return NAV.some(([key]) => key === tab) ? { tab: tab as Tab, param } : { tab: 'dashboard' }
 }
 
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem('hula.token') ?? '')
   const [user, setUser] = useState<User | null>(() => readStorage('hula.user'))
   const [storeSlug, setStoreSlug] = useState(() => localStorage.getItem('hula.storeSlug') ?? '')
-  const [tab, setTab] = useState<Tab>(tabFromHash)
+  const [route, setRoute] = useState(routeFromHash)
+  const { tab, param } = route
   const [message, setMessage] = useState('')
 
   useEffect(() => {
-    const onHash = () => setTab(tabFromHash())
+    const onHash = () => setRoute(routeFromHash())
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
@@ -80,58 +88,58 @@ function App() {
     localStorage.removeItem('hula.user')
   }
 
-  const pageProps: PageProps | null = store ? { store, token, notify: setMessage } : null
+  const pageProps: PageProps | null = store ? { store, token, notify: setMessage, param } : null
 
+  const signedInStore = Boolean(user && token && store)
   return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <div>
-          <p className="eyebrow">Hula</p>
-          <h1>Merchant Admin</h1>
-        </div>
-        {user && store ? (
-          <nav>
-            {TABS.map(([key, label]) => (
-              <a key={key} href={`#/${key}`} className={tab === key ? 'nav-item active' : 'nav-item'}>
-                {label}
-              </a>
-            ))}
-          </nav>
-        ) : (
-          <div className="intro">
-            <strong>Build your online store</strong>
-            <span>Create a Hula store, manage your catalog, and sell on your own subdomain.</span>
-          </div>
-        )}
+    <div className={signedInStore ? 'app-shell' : 'app-shell bare'}>
+      <header className="topbar">
+        <a className="brand" href="#/">
+          <span className="brand-mark">H</span>
+          <span>Hula</span>
+        </a>
+        <span className="topbar-store">{store ? store.name : ''}</span>
         {user ? (
           <div className="account">
-            <strong>{user.name}</strong>
-            <span>{user.email}</span>
             {store ? (
-              <button type="button" onClick={() => selectStore(null)}>
+              <button type="button" className="ghost" onClick={() => selectStore(null)}>
                 Switch store
               </button>
             ) : null}
-            <button type="button" onClick={signOut}>
+            <span className="avatar" title={user.email}>
+              {user.name.slice(0, 1).toUpperCase()}
+            </span>
+            <button type="button" className="ghost" onClick={signOut}>
               Sign out
             </button>
           </div>
         ) : null}
-      </aside>
+      </header>
 
-      <section className="workspace">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">{store ? TABS.find(([key]) => key === tab)?.[1] : 'Merchant access'}</p>
-            <h2>{store ? store.name : user ? `Welcome, ${user.name}` : 'Run your store with Hula'}</h2>
-          </div>
+      {signedInStore ? (
+        <aside className="sidebar">
+          <nav>
+            {NAV.map(([key, label, Icon, sub]) => (
+              <a
+                key={key}
+                href={`#/${key}`}
+                className={`nav-item${sub ? ' sub' : ''}${tab === key ? ' active' : ''}`}
+              >
+                <Icon size={16} aria-hidden />
+                {label}
+              </a>
+            ))}
+          </nav>
           {store ? (
-            <span className="pill">
-              {store.domains.find((d) => d.isPrimary)?.hostname ?? store.slug} · {store.role}
-            </span>
+            <div className="store-card">
+              <strong>{store.domains.find((d) => d.isPrimary)?.hostname ?? store.slug}</strong>
+              <span>{store.role === 'OWNER' ? 'Owner' : 'Staff'}</span>
+            </div>
           ) : null}
-        </header>
+        </aside>
+      ) : null}
 
+      <main className="workspace">
         {message ? (
           <div className="notice" onClick={() => setMessage('')}>
             {message}
@@ -160,15 +168,18 @@ function App() {
         ) : (
           <div key={pageProps.store.id}>
             {tab === 'dashboard' ? <DashboardPage {...pageProps} /> : null}
-            {tab === 'products' ? <ProductsPage {...pageProps} /> : null}
+            {tab === 'products' && param ? <ProductEditorPage key={param} {...pageProps} /> : null}
+            {tab === 'products' && !param ? <ProductsPage {...pageProps} /> : null}
+            {tab === 'drafts' ? <DraftOrdersPage {...pageProps} /> : null}
+            {tab === 'discounts' ? <DiscountsPage {...pageProps} /> : null}
             {tab === 'collections' ? <CollectionsPage {...pageProps} /> : null}
             {tab === 'orders' ? <OrdersPage {...pageProps} /> : null}
             {tab === 'customers' ? <CustomersPage {...pageProps} /> : null}
             {tab === 'settings' ? <SettingsPage {...pageProps} onStoreUpdated={upsertStore} /> : null}
           </div>
         )}
-      </section>
-    </main>
+      </main>
+    </div>
   )
 }
 

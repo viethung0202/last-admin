@@ -115,6 +115,13 @@ export function OrdersPage({ store, token, notify }: PageProps) {
                     </span>
                   </li>
                 ))}
+                {Number(order.discountAmount) > 0 ? (
+                  <li>
+                    <span>Discount {order.discountCode}</span>
+                    <span>−{formatMoney(order.discountAmount, store.currency)}</span>
+                  </li>
+                ) : null}
+                {order.note ? <li><span>Note: {order.note}</span></li> : null}
               </ul>
             ) : null}
           </article>
