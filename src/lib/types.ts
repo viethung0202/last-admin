@@ -128,3 +128,16 @@ export type Discount = {
   endsAt: string | null
   active: boolean
 }
+
+export type PageSummary = {
+  id: string
+  slug: string
+  title: string
+  updatedAt: string
+  publishedVersion: { id: string; version: number; createdAt: string } | null
+}
+
+export type PageDetail = PageSummary & {
+  draft: unknown
+  versions: Array<{ id: string; version: number; createdAt: string }>
+}

@@ -915,3 +915,37 @@ button.fit {
     display: none;
   }
 }
+
+/* ---- page builder (full-screen, above the admin chrome) ---- */
+.builder-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #fff;
+}
+
+.builder-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.builder-actions select {
+  width: auto;
+  max-width: 150px;
+}
+
+.builder-exit {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.sf-root {
+  min-height: 100%;
+  background: #fff;
+  color: #121212;
+  font-family: system-ui, sans-serif;
+}

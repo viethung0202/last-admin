@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { FileEdit, Home, Layers, Percent, Settings, ShoppingCart, Tag, Users } from 'lucide-react'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { FileEdit, Home, Layers, LayoutTemplate, Percent, Settings, ShoppingCart, Tag, Users } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { apiRequest, useMutation, useQuery } from './lib/api'
 import { readStorage } from './lib/format'
@@ -10,11 +10,15 @@ import { DashboardPage } from './pages/DashboardPage'
 import { DiscountsPage } from './pages/DiscountsPage'
 import { DraftOrdersPage } from './pages/DraftOrdersPage'
 import { OrdersPage } from './pages/OrdersPage'
+import { PagesPage } from './pages/PagesPage'
 import { ProductEditorPage } from './pages/ProductEditorPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { StorePicker } from './pages/StorePicker'
 import './App.css'
+
+// Puck is ~500 kB; only load it when the page builder opens
+const PageEditorPage = lazy(() => import('./pages/PageEditorPage').then((m) => ({ default: m.PageEditorPage })))
 
 const NAV = [
   ['dashboard', 'Home', Home, false],
@@ -24,6 +28,7 @@ const NAV = [
   ['collections', 'Collections', Layers, true],
   ['customers', 'Customers', Users, false],
   ['discounts', 'Discounts', Percent, false],
+  ['pages', 'Online Store', LayoutTemplate, false],
   ['settings', 'Settings', Settings, false],
 ] as const
 
@@ -172,6 +177,12 @@ function App() {
             {tab === 'products' && !param ? <ProductsPage {...pageProps} /> : null}
             {tab === 'drafts' ? <DraftOrdersPage {...pageProps} /> : null}
             {tab === 'discounts' ? <DiscountsPage {...pageProps} /> : null}
+            {tab === 'pages' && param ? (
+              <Suspense fallback={<div className="empty">Loading editor...</div>}>
+                <PageEditorPage key={param} {...pageProps} />
+              </Suspense>
+            ) : null}
+            {tab === 'pages' && !param ? <PagesPage {...pageProps} /> : null}
             {tab === 'collections' ? <CollectionsPage {...pageProps} /> : null}
             {tab === 'orders' ? <OrdersPage {...pageProps} /> : null}
             {tab === 'customers' ? <CustomersPage {...pageProps} /> : null}
