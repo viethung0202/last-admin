@@ -19,6 +19,7 @@ export type Store = {
   currency: string
   domains: Domain[]
   role: Role
+  status?: 'ACTIVE' | 'SUSPENDED'
 }
 
 export type ProductCategory = {
@@ -141,3 +142,40 @@ export type PageDetail = PageSummary & {
   draft: unknown
   versions: Array<{ id: string; version: number; createdAt: string }>
 }
+
+export type PlatformStats = { stores: number; suspended: number; merchants: number; orders: number; templates: number }
+
+export type PlatformStore = {
+  id: string
+  slug: string
+  name: string
+  currency: string
+  status: 'ACTIVE' | 'SUSPENDED'
+  createdAt: string
+  owners: Array<{ email: string; name: string }>
+  productCount: number
+  orderCount: number
+}
+
+export type PlatformMerchant = {
+  id: string
+  email: string
+  name: string
+  createdAt: string
+  stores: Array<{ slug: string; name: string; status: string; role: Role }>
+}
+
+export type TemplateSummary = {
+  id: string
+  name: string
+  description: string | null
+  category: string | null
+  thumbnailUrl: string | null
+  source?: 'PLATFORM' | 'AI'
+  published?: boolean
+  updatedAt?: string
+}
+
+export type TemplateDetail = TemplateSummary & { data: unknown }
+
+export type VnpaySettings = { tmnCode: string; payUrl: string; hashSecretSet: boolean; envFallback: boolean }

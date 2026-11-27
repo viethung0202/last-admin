@@ -11,6 +11,7 @@ import { DiscountsPage } from './pages/DiscountsPage'
 import { DraftOrdersPage } from './pages/DraftOrdersPage'
 import { OrdersPage } from './pages/OrdersPage'
 import { PagesPage } from './pages/PagesPage'
+import { PlatformPage } from './pages/PlatformPage'
 import { ProductEditorPage } from './pages/ProductEditorPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -19,6 +20,7 @@ import './App.css'
 
 // Puck is ~500 kB; only load it when the page builder opens
 const PageEditorPage = lazy(() => import('./pages/PageEditorPage').then((m) => ({ default: m.PageEditorPage })))
+const TemplateEditorPage = lazy(() => import('./pages/PageEditorPage').then((m) => ({ default: m.TemplateEditorPage })))
 
 const NAV = [
   ['dashboard', 'Home', Home, false],
@@ -32,12 +34,14 @@ const NAV = [
   ['settings', 'Settings', Settings, false],
 ] as const
 
-type Tab = (typeof NAV)[number][0]
+type Tab = (typeof NAV)[number][0] | 'platform'
 
 // #/orders -> {tab:'orders'}, #/products/abc -> {tab:'products', param:'abc'}
 // keeps the page on refresh and makes links like href="#/orders" work
-function routeFromHash(): { tab: Tab; param?: string } {
-  const [tab, param] = location.hash.replace(/^#\/?/, '').split('/')
+// #/platform/templates/abc -> {tab:'platform', param:'templates', id:'abc'}
+function routeFromHash(): { tab: Tab; param?: string; id?: string } {
+  const [tab, param, id] = location.hash.replace(/^#\/?/, '').split('/')
+  if (tab === 'platform') return { tab, param, id }
   return NAV.some(([key]) => key === tab) ? { tab: tab as Tab, param } : { tab: 'dashboard' }
 }
 
@@ -46,7 +50,7 @@ function App() {
   const [user, setUser] = useState<User | null>(() => readStorage('hula.user'))
   const [storeSlug, setStoreSlug] = useState(() => localStorage.getItem('hula.storeSlug') ?? '')
   const [route, setRoute] = useState(routeFromHash)
-  const { tab, param } = route
+  const { tab, param, id } = route
   const [message, setMessage] = useState('')
 
   useEffect(() => {
@@ -61,6 +65,14 @@ function App() {
     { enabled: Boolean(token), initialData: [] },
   )
   const store = storesQuery.data.find((item) => item.slug === storeSlug) ?? null
+  // 200 only for emails in PLATFORM_ADMIN_EMAILS; anyone else never sees the Platform link
+  const adminQuery = useQuery<boolean>(
+    ['platform-access', token],
+    () => apiRequest('/platform/stats', { token }).then(() => true, () => false),
+    { enabled: Boolean(token), initialData: false },
+  )
+  const isAdmin = Boolean(token) && adminQuery.data
+  const onPlatform = isAdmin && tab === 'platform'
 
   // expired/invalid token -> back to login
   useEffect(() => {
@@ -95,9 +107,9 @@ function App() {
 
   const pageProps: PageProps | null = store ? { store, token, notify: setMessage, param } : null
 
-  const signedInStore = Boolean(user && token && store)
+  const signedInStore = Boolean(user && token && store) && !onPlatform
   return (
-    <div className={signedInStore ? 'app-shell' : 'app-shell bare'}>
+    <div className={signedInStore ? 'app-shell' : onPlatform ? 'app-shell bare wide' : 'app-shell bare'}>
       <header className="topbar">
         <a className="brand" href="#/">
           <span className="brand-mark">H</span>
@@ -106,7 +118,12 @@ function App() {
         <span className="topbar-store">{store ? store.name : ''}</span>
         {user ? (
           <div className="account">
-            {store ? (
+            {isAdmin ? (
+              <a className={`ghost${onPlatform ? ' active' : ''}`} href={onPlatform ? '#/dashboard' : '#/platform/stores'}>
+                {onPlatform ? 'Back to store' : 'Platform'}
+              </a>
+            ) : null}
+            {store && !onPlatform ? (
               <button type="button" className="ghost" onClick={() => selectStore(null)}>
                 Switch store
               </button>
@@ -162,6 +179,14 @@ function App() {
             }}
             notify={setMessage}
           />
+        ) : onPlatform ? (
+          param === 'templates' && id ? (
+            <Suspense fallback={<div className="empty">Loading editor...</div>}>
+              <TemplateEditorPage key={id} id={id} token={token} notify={setMessage} />
+            </Suspense>
+          ) : (
+            <PlatformPage token={token} notify={setMessage} section={param || 'stores'} />
+          )
         ) : !pageProps ? (
           <StorePicker
             token={token}

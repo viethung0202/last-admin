@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import { apiRequest, useMutation, useQuery } from '../lib/api'
 import { formatDate } from '../lib/format'
-import type { PageProps, PageSummary } from '../lib/types'
+import type { PageProps, PageSummary, TemplateSummary } from '../lib/types'
 import { starterHome } from '../builder/sections'
 
 export function PagesPage({ store, token, notify }: PageProps) {
   const base = `/stores/${store.slug}/pages`
   const [title, setTitle] = useState('')
+  const [templateId, setTemplateId] = useState('')
+  const templates = useQuery<TemplateSummary[]>(['templates'], () => apiRequest('/templates', { token }), { initialData: [] })
   const query = useQuery<PageSummary[]>(['pages', store.slug], () => apiRequest(base, { token }), { initialData: [] })
 
-  const createMutation = useMutation<{ title: string; slug?: string; data?: unknown }, PageSummary>(
+  const createMutation = useMutation<{ title: string; slug?: string; data?: unknown; templateId?: string }, PageSummary>(
     (input) => apiRequest(base, { method: 'POST', token, body: JSON.stringify(input) }),
     { onSuccess: (page) => void (location.hash = `#/pages/${page.id}`), onError: notify },
   )
@@ -41,10 +43,21 @@ export function PagesPage({ store, token, notify }: PageProps) {
         className="panel inline-form"
         onSubmit={(e) => {
           e.preventDefault()
-          createMutation.mutate({ title }).catch(() => undefined)
+          createMutation.mutate({ title, templateId: templateId || undefined }).catch(() => undefined)
         }}
       >
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="New page title, e.g. About us" aria-label="New page title" />
+        {templates.data.length ? (
+          <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} aria-label="Start from template">
+            <option value="">Blank page</option>
+            {templates.data.map((t) => (
+              <option key={t.id} value={t.id}>
+                Template: {t.name}
+                {t.category ? ` (${t.category})` : ''}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <button type="submit" disabled={!title.trim() || createMutation.isPending}>
           Add page
         </button>

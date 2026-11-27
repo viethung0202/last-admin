@@ -5,7 +5,7 @@ import type { Config, Data } from '@puckeditor/core'
 import '@puckeditor/core/puck.css'
 import { apiRequest, useMutation, useQuery } from '../lib/api'
 import { formatDate, formatMoney } from '../lib/format'
-import type { Collection, PageDetail, PageProps, Product } from '../lib/types'
+import type { Collection, PageDetail, PageProps, Product, TemplateDetail } from '../lib/types'
 import { createSections } from '../builder/sections'
 
 const VIEWPORTS = [
@@ -13,6 +13,16 @@ const VIEWPORTS = [
   { width: 768, height: 'auto' as const, label: 'Tablet', icon: 'Tablet' as const },
   { width: 1280, height: 'auto' as const, label: 'Desktop', icon: 'Monitor' as const },
 ]
+
+function builderConfig(ctx: Parameters<typeof createSections>[0]): Config {
+  const sections = createSections(ctx)
+  return {
+    components: Object.fromEntries(
+      Object.entries(sections).map(([type, s]) => [type, { label: s.label, fields: s.fields, defaultProps: s.defaultProps, render: s.render }]),
+    ),
+    root: { fields: {}, render: ({ children }: { children: ReactNode }) => <div className="sf-root">{children}</div> },
+  } as Config
+}
 
 // Full-screen theme editor (Shopify "Customize"): drag sections, edit props, preview
 // per viewport, save the draft, publish an immutable version, restore an old one.
@@ -30,19 +40,15 @@ export function PageEditorPage({ store, token, notify, param }: PageProps) {
     initialData: [],
   })
 
-  const config = useMemo<Config>(() => {
-    const sections = createSections({
-      products: productsQuery.data.filter((p) => p.status === 'ACTIVE' && p.variants.length > 0),
-      collections: collectionsQuery.data,
-      money: (amount) => formatMoney(amount, store.currency),
-    })
-    return {
-      components: Object.fromEntries(
-        Object.entries(sections).map(([type, s]) => [type, { label: s.label, fields: s.fields, defaultProps: s.defaultProps, render: s.render }]),
-      ),
-      root: { fields: {}, render: ({ children }: { children: ReactNode }) => <div className="sf-root">{children}</div> },
-    } as Config
-  }, [productsQuery.data, collectionsQuery.data, store.currency])
+  const config = useMemo(
+    () =>
+      builderConfig({
+        products: productsQuery.data.filter((p) => p.status === 'ACTIVE' && p.variants.length > 0),
+        collections: collectionsQuery.data,
+        money: (amount) => formatMoney(amount, store.currency),
+      }),
+    [productsQuery.data, collectionsQuery.data, store.currency],
+  )
 
   const onPage = (page: PageDetail, message: string) => {
     pageQuery.setData(page)
@@ -121,6 +127,62 @@ export function PageEditorPage({ store, token, notify, param }: PageProps) {
             </button>
             <button type="button" disabled={busy} onClick={() => publishMutation.mutate(state.data).catch(() => undefined)}>
               Publish
+            </button>
+          </div>
+        )}
+      />
+    </div>
+  )
+}
+
+// Platform admin designs a template with the same editor; no store, so product/collection sections preview empty.
+export function TemplateEditorPage({ token, notify, id }: { token: string; notify: (message: string) => void; id: string }) {
+  const base = `/platform/templates/${id}`
+  const [dirty, setDirty] = useState(false)
+  const query = useQuery<TemplateDetail | null>(['template', id], () => apiRequest(base, { token }), { initialData: null })
+  const config = useMemo(() => builderConfig({ products: [], collections: [], money: (amount) => formatMoney(amount, 'VND') }), [])
+  const saveMutation = useMutation<{ data?: Data; published?: boolean }, TemplateDetail>(
+    (input) => apiRequest(base, { method: 'PUT', token, body: JSON.stringify(input) }),
+    {
+      onSuccess: (t, input) => {
+        query.setData((current) => (current ? { ...current, ...t, data: input.data ?? current.data } : current))
+        setDirty(false)
+        notify(input.published === undefined ? 'Template saved' : input.published ? 'Template published' : 'Template hidden')
+      },
+      onError: notify,
+    },
+  )
+
+  const t = query.data
+  if (query.error) return <div className="notice">{query.error}</div>
+  if (!t) return <div className="empty">Loading editor...</div>
+
+  return (
+    <div className="builder-screen">
+      <Puck
+        config={config}
+        data={t.data as Data}
+        headerTitle={t.name}
+        headerPath="template"
+        viewports={VIEWPORTS}
+        height="100%"
+        onChange={() => setDirty(true)}
+        renderHeaderActions={({ state }) => (
+          <div className="builder-actions">
+            <a className="builder-exit" href="#/platform/templates">
+              ← Exit
+            </a>
+            <span className={t.published ? 'badge success' : 'badge'}>{t.published ? 'Published' : 'Hidden'}</span>
+            {dirty ? <span className="badge">Unsaved changes</span> : null}
+            <button type="button" className="secondary" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate({ data: state.data }).catch(() => undefined)}>
+              Save
+            </button>
+            <button
+              type="button"
+              disabled={saveMutation.isPending}
+              onClick={() => saveMutation.mutate({ data: state.data, published: !t.published }).catch(() => undefined)}
+            >
+              {t.published ? 'Save & hide' : 'Save & publish'}
             </button>
           </div>
         )}
