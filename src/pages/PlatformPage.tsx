@@ -366,7 +366,7 @@ function Payments({ token, notify }: Omit<Props, 'section'>) {
       </label>
       <label>
         Payment URL
-        <input value={form.payUrl} onChange={(e) => setForm({ ...form, payUrl: e.target.value })} placeholder="https://sandbox.vnpayment.vn/paymentv2/vpcpay.html" />
+        <input value={form.payUrl} onChange={(e) => setForm({ ...form, payUrl: e.target.value })} placeholder="https://sandbox.vnpaytest.vn/paymentv2/vpcpay.html" />
       </label>
       <button type="submit" className="fit" disabled={saveMutation.isPending}>
         Save
