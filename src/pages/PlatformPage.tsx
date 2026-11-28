@@ -337,6 +337,9 @@ function Payments({ token, notify }: Omit<Props, 'section'>) {
     },
   )
   const v = query.data
+  // the form is filled when the settings load, so don't show it before (typing would be overwritten)
+  if (query.error) return <div className="notice">{query.error}</div>
+  if (!v) return <div className="empty">Loading...</div>
   return (
     <form
       className="panel form-grid"

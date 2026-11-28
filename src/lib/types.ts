@@ -65,7 +65,7 @@ export type OrderStatus = 'DRAFT' | 'PENDING' | 'PAID' | 'SHIPPED' | 'DELIVERED'
 
 export type Payment = {
   method: 'COD' | 'VNPAY'
-  status: 'PENDING' | 'SUCCEEDED' | 'FAILED'
+  status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED'
 }
 
 export type Order = {

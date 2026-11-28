@@ -30,6 +30,18 @@ export function OrdersPage({ store, token, notify }: PageProps) {
     },
   )
 
+  // paid online: the money goes back through VNPAY, which also cancels the order
+  const refundMutation = useMutation<string, Order>(
+    (orderId) => apiRequest(`${base}/${orderId}/refund`, { method: 'POST', token }),
+    {
+      onSuccess: async () => {
+        notify('Refunded through VNPAY. The order is cancelled and stock returned.')
+        await ordersQuery.refetch()
+      },
+      onError: notify,
+    },
+  )
+
   const orders = ordersQuery.data.filter(
     (order) => statusFilter === 'ALL' || order.status === statusFilter,
   )
@@ -72,9 +84,10 @@ export function OrdersPage({ store, token, notify }: PageProps) {
                 </strong>
                 <span>{order.guestEmail ?? 'No email'}</span>
                 <span>
-                  {order.payments[0]
-                    ? `${order.payments[0].method} · ${order.payments[0].status}`
-                    : 'No payment'}
+                  {(() => {
+                    const p = order.payments.find((x) => x.status === 'SUCCEEDED' || x.status === 'REFUNDED') ?? order.payments.at(-1)
+                    return p ? `${p.method} · ${p.status}` : 'No payment'
+                  })()}
                 </span>
               </div>
               <span>{formatMoney(order.total, store.currency)}</span>
@@ -94,6 +107,20 @@ export function OrdersPage({ store, token, notify }: PageProps) {
                   </option>
                 ))}
               </select>
+              {(order.status === 'PAID' || order.status === 'SHIPPED') &&
+              order.payments.some((p) => p.method === 'VNPAY' && p.status === 'SUCCEEDED') ? (
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={refundMutation.isPending}
+                  onClick={() =>
+                    confirm(`Refund ${formatMoney(order.total, store.currency)} to the customer through VNPAY? The order will be cancelled.`) &&
+                    refundMutation.mutate(order.id).catch(() => undefined)
+                  }
+                >
+                  Refund
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="secondary"

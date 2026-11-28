@@ -787,7 +787,7 @@ button.fit {
 }
 
 .order-card .order-row {
-  grid-template-columns: 1.5fr 120px 170px 140px auto;
+  grid-template-columns: 1.5fr 120px 170px 140px auto auto;
 }
 
 .order-row > div:first-child {
